@@ -1,109 +1,137 @@
 /*
-Week 4 — Example 1: Grid + Static Maze
+Week 4 — Simple Example: 2 Levels + Arrays + Loops
 Course: GBDA302
 Instructors: Dr. Karen Cochrane and David Han
 Date: Feb. 5, 2026
 
-PURPOSE: This is the simplest possible p5.js sketch that demonstrates:
-1. How a 2D array represents a maze/game level
-2. Nested loops to iterate through grid rows/columns
-3. Converting grid coordinates (r,c) → screen coordinates (x,y)
-4. Tile-based rendering (every cell = one rectangle)
+PURPOSE (matches the instructions):
+1. Generate a level using arrays/JSON data (LEVELS)
+2. Use nested loops to draw tiles + obstacles + words
+BONUS: Level 2 loads automatically when Level 1 is finished (reach the goal)
 */
 
-const TS = 32; // TILE SIZE: pixels per grid cell (32x32 squares)
+const TS = 32; // tile size
 
 /*
-GRID LEGEND (how numbers map to visuals):
-- 0 = floor (walkable, light gray)
-- 1 = wall (blocked, dark teal)
+GRID LEGEND (numbers):
+0 = floor
+1 = wall
+2 = obstacle
+3 = word
+4 = goal
 */
-const grid = [
-  // Row 0 (top edge - all walls)
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 
-  // Row 1 (open hallway with wall in middle)
-  [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-
-  // Row 2 (complex maze pattern)
-  [1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1],
-
-  // Row 3
-  [1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1],
-
-  // Row 4
-  [1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1],
-
-  // Row 5
-  [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
-
-  // Row 6
-  [1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1],
-
-  // Row 7
-  [1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1],
-
-  // Row 8
-  [1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1],
-
-  // Row 9
-  [1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
-
-  // Row 10 (bottom edge - all walls)
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+// LEVEL DATA (arrays/JSON-style)
+const LEVELS = [
+  {
+    grid: [
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      [1, 0, 0, 0, 3, 0, 0, 0, 4, 1],
+      [1, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+      [1, 0, 0, 2, 0, 0, 1, 0, 0, 1],
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    ],
+  },
+  {
+    grid: [
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      [1, 0, 3, 0, 0, 0, 1, 0, 4, 1],
+      [1, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+      [1, 0, 0, 2, 0, 0, 0, 0, 0, 1],
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    ],
+  },
 ];
 
-/*
-p5.js SETUP: Runs once when sketch loads
-*/
-function setup() {
-  // Canvas size = grid dimensions × tile size
-  // grid[0].length = 16 columns, grid.length = 11 rows
-  // Canvas = 16×32 = 512px wide, 11×32 = 352px tall
-  createCanvas(grid[0].length * TS, grid.length * TS);
+// current level + player
+let levelIndex = 0;
+let grid = [];
+let pr = 1; // player row
+let pc = 1; // player col
 
-  // Drawing style setup
-  noStroke(); // No black outlines on tiles (clean look)
-  textFont("sans-serif"); // Clean font for UI text
-  textSize(14); // Small text size for HUD
+function loadLevel(i) {
+  levelIndex = i;
+
+  // copy level grid so we can edit it (remove words)
+  const src = LEVELS[levelIndex].grid;
+  grid = [];
+  for (let r = 0; r < src.length; r++) {
+    grid[r] = [...src[r]];
+  }
+
+  // reset player
+  pr = 1;
+  pc = 1;
+
+  // canvas matches grid size
+  createCanvas(grid[0].length * TS, grid.length * TS);
+  noStroke();
 }
 
-/*
-p5.js DRAW: Runs 60 times per second (game loop)
-*/
+function setup() {
+  loadLevel(0);
+}
+
 function draw() {
-  // Clear screen with light gray background each frame
   background(240);
 
-  /*
-  CORE RENDERING LOOP: Draw every tile in the grid
-  
-  Nested loops:
-  - Outer loop: iterate ROWS (r = 0 to 10)
-  - Inner loop: iterate COLUMNS in each row (c = 0 to 15)
-  */
+  // LOOP: draw tiles from the array (dynamic placement)
   for (let r = 0; r < grid.length; r++) {
     for (let c = 0; c < grid[0].length; c++) {
-      // TILE TYPE CHECK: What kind of tile is at grid[r][c]?
-      if (grid[r][c] === 1) {
-        // WALL TILE: Dark teal colour (RGB: 30, 50, 60)
-        fill(30, 50, 60);
-      } else {
-        // FLOOR TILE: Light gray (RGB: 230, 230, 230)
-        fill(230);
-      }
+      const t = grid[r][c];
 
-      /*
-      CONVERT GRID COORDS → SCREEN COORDS:
-      - Grid: r=0,c=3     → Screen: x=96, y=0
-      - Grid: r=5,c=7     → Screen: x=224, y=160
-      - x = column × TS    y = row × TS
-      */
+      if (t === 1)
+        fill(30, 50, 60); // wall
+      else if (t === 2)
+        fill(120, 35, 35); // obstacle
+      else if (t === 3)
+        fill(255, 210, 70); // word
+      else if (t === 4)
+        fill(40, 170, 80); // goal
+      else fill(230); // floor
+
       rect(c * TS, r * TS, TS, TS);
     }
   }
 
-  // UI LABEL: Explain what students are seeing
-  fill(0); // Black text
-  text("Static array → grid render", 10, 16);
+  // player
+  fill(40, 110, 255);
+  rect(pc * TS + 6, pr * TS + 6, TS - 12, TS - 12);
+
+  // tiny label
+  fill(0);
+  textSize(14);
+  text("Level " + (levelIndex + 1), 10, 16);
+}
+
+function keyPressed() {
+  let dr = 0,
+    dc = 0;
+  if (keyCode === UP_ARROW) dr = -1;
+  if (keyCode === DOWN_ARROW) dr = 1;
+  if (keyCode === LEFT_ARROW) dc = -1;
+  if (keyCode === RIGHT_ARROW) dc = 1;
+
+  const nr = pr + dr;
+  const nc = pc + dc;
+
+  // bounds
+  if (nr < 0 || nr >= grid.length || nc < 0 || nc >= grid[0].length) return;
+
+  const next = grid[nr][nc];
+
+  // blocked by wall or obstacle
+  if (next === 1 || next === 2) return;
+
+  // move
+  pr = nr;
+  pc = nc;
+
+  // collect word (turn into floor)
+  if (next === 3) grid[nr][nc] = 0;
+
+  // BONUS: finish level (goal) -> load next
+  if (next === 4 && levelIndex < LEVELS.length - 1) {
+    loadLevel(levelIndex + 1);
+  }
 }
